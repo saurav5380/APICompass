@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     api_prefix: str = Field(default="/api")
 
     database_url: PostgresDsn = Field(
-        default="postgresql+psycopg://postgres:postgres@localhost:5432/api_compass",
+        default="postgresql+psycopg://postgres:postgres@localhost:15432/api_compass",
         alias="DATABASE_URL",
     )
     redis_url: RedisDsn = Field(

@@ -85,7 +85,7 @@ class Connection(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     display_name: Mapped[str | None] = mapped_column(sa.String(length=255))
     encrypted_auth_blob: Mapped[bytes] = mapped_column(sa.LargeBinary, nullable=False)
     scopes: Mapped[list[str] | None] = mapped_column(JSONB)
-    metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB)
     last_synced_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
 
     org: Mapped[Org] = relationship("Org", back_populates="connections")
@@ -98,9 +98,14 @@ class Connection(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
 
-class RawUsageEvent(UUIDPrimaryKeyMixin, Base):
+class RawUsageEvent(Base):
     __tablename__ = "raw_usage_events"
 
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        server_default=sa.text("gen_random_uuid()"),
+        nullable=False,
+    )
     org_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), sa.ForeignKey("orgs.id"), nullable=False)
     connection_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), sa.ForeignKey("connections.id", ondelete="SET NULL"), nullable=True
@@ -115,7 +120,7 @@ class RawUsageEvent(UUIDPrimaryKeyMixin, Base):
     currency: Mapped[str] = mapped_column(sa.String(length=3), nullable=False, server_default="usd")
     ts: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
     source: Mapped[str | None] = mapped_column(sa.String(length=50))
-    metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB)
     ingested_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), server_default=sa.text("timezone('utc', now())"), nullable=False
     )
@@ -124,6 +129,8 @@ class RawUsageEvent(UUIDPrimaryKeyMixin, Base):
     connection: Mapped[Connection | None] = relationship("Connection", back_populates="raw_events")
 
     __table_args__ = (
+        sa.PrimaryKeyConstraint("id", "ts", name="pk_raw_usage_events"),
+        sa.Index("ix_raw_usage_events_id", "id"),
         sa.Index("ix_raw_usage_events_org_ts", "org_id", "ts"),
         sa.Index("ix_raw_usage_events_provider_ts", "provider", "ts"),
     )
@@ -200,7 +207,7 @@ class AuditLogEntry(UUIDPrimaryKeyMixin, Base):
     action: Mapped[str] = mapped_column(sa.String(length=128), nullable=False)
     object_type: Mapped[str] = mapped_column(sa.String(length=64), nullable=False)
     object_id: Mapped[str | None] = mapped_column(sa.String(length=64))
-    metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB)
     ip_address: Mapped[str | None] = mapped_column(sa.String(length=64))
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), server_default=sa.text("timezone('utc', now())"), nullable=False

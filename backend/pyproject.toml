@@ -2,7 +2,12 @@
 name = "api-compass-backend"
 version = "0.1.0"
 description = "FastAPI backend for API Compass"
-authors = ["API Compass <founders@apicomp.ass>"]
+authors = [
+  {name="Saurav", email="banerjiesaurav@gmail.com"}
+  ]
+maintainers = [
+  {name = "Saurav", email = "banerjiesaurav@gmail.com"}
+]
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

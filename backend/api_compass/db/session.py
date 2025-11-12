@@ -5,7 +5,9 @@ from sqlalchemy.orm import sessionmaker
 
 from api_compass.core.config import settings
 
-engine = create_engine(settings.database_url, echo=False, future=True, pool_pre_ping=True)
+DATABASE_URL = str(settings.database_url)
+
+engine = create_engine(DATABASE_URL, echo=False, future=True, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, future=True)
 
 

@@ -22,4 +22,4 @@ cd backend
 alembic upgrade head
 ```
 
-Set `DATABASE_URL` (for example, `postgresql+psycopg://postgres:postgres@localhost:5432/api_compass`) before running Alembic commands. Use `alembic revision --autogenerate -m "describe change"` when adding new models.
+Set `DATABASE_URL` (for example, `postgresql+psycopg://postgres:postgres@localhost:15432/api_compass`) before running Alembic commands. Use `alembic revision --autogenerate -m "describe change"` when adding new models.

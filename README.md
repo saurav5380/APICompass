@@ -44,9 +44,3 @@ The frontend will be available at http://localhost:3000 and the API at http://lo
 - Prisma client/schema (for Next.js server actions): `cd frontend && npm run prisma:generate`
 - To validate the Prisma schema locally, set `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/api_compass`
 
-## Next steps
-
-- Add auth (NextAuth + shared session middleware).
-- Implement provider connection flows + encrypted credential storage.
-- Add Celery workers + schedules for polling/webhooks.
-- Define database migrations via Alembic and Timescale continuous aggregates.

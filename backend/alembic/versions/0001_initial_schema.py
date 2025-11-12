@@ -2,6 +2,7 @@
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 from sqlalchemy.dialects import postgresql
 
 revision = "0001_initial_schema"
@@ -10,24 +11,36 @@ branch_labels = None
 depends_on = None
 
 
-plan_type_enum = postgresql.ENUM("free", "pro", "enterprise", name="plan_type_enum")
+plan_type_enum = postgresql.ENUM(
+    "free", "pro", "enterprise", name="plan_type_enum", create_type=False
+)
 user_role_enum = postgresql.ENUM(
-    "owner", "admin", "member", "viewer", name="user_role_enum"
+    "owner", "admin", "member", "viewer", name="user_role_enum", create_type=False
 )
 provider_enum = postgresql.ENUM(
-    "openai", "twilio", "sendgrid", "stripe", "generic", name="provider_enum"
+    "openai", "twilio", "sendgrid", "stripe", "generic", name="provider_enum", create_type=False
 )
-environment_enum = postgresql.ENUM("prod", "staging", "dev", name="environment_enum")
+environment_enum = postgresql.ENUM(
+    "prod", "staging", "dev", name="environment_enum", create_type=False
+)
 connection_status_enum = postgresql.ENUM(
-    "pending", "active", "error", "disabled", name="connection_status_enum"
+    "pending", "active", "error", "disabled", name="connection_status_enum", create_type=False
 )
-alert_channel_enum = postgresql.ENUM("email", "slack", name="alert_channel_enum")
+alert_channel_enum = postgresql.ENUM("email", "slack", name="alert_channel_enum", create_type=False)
 alert_frequency_enum = postgresql.ENUM(
-    "real_time", "hourly", "daily", name="alert_frequency_enum"
+    "real_time", "hourly", "daily", name="alert_frequency_enum", create_type=False
 )
 alert_severity_enum = postgresql.ENUM(
-    "info", "warning", "critical", name="alert_severity_enum"
+    "info", "warning", "critical", name="alert_severity_enum", create_type=False
 )
+
+
+def _create_enum_if_missing(enum, bind) -> None:
+    inspector = inspect(bind)
+    schema = enum.schema or inspector.default_schema_name
+    existing = {e["name"] for e in inspector.get_enums(schema=schema)}
+    if enum.name not in existing:
+        enum.create(bind, checkfirst=False)
 
 
 def upgrade() -> None:
@@ -36,14 +49,14 @@ def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto;")
     op.execute("CREATE EXTENSION IF NOT EXISTS timescaledb;")
 
-    plan_type_enum.create(bind, checkfirst=True)
-    user_role_enum.create(bind, checkfirst=True)
-    provider_enum.create(bind, checkfirst=True)
-    environment_enum.create(bind, checkfirst=True)
-    connection_status_enum.create(bind, checkfirst=True)
-    alert_channel_enum.create(bind, checkfirst=True)
-    alert_frequency_enum.create(bind, checkfirst=True)
-    alert_severity_enum.create(bind, checkfirst=True)
+    _create_enum_if_missing(plan_type_enum, bind)
+    _create_enum_if_missing(user_role_enum, bind)
+    _create_enum_if_missing(provider_enum, bind)
+    _create_enum_if_missing(environment_enum, bind)
+    _create_enum_if_missing(connection_status_enum, bind)
+    _create_enum_if_missing(alert_channel_enum, bind)
+    _create_enum_if_missing(alert_frequency_enum, bind)
+    _create_enum_if_missing(alert_severity_enum, bind)
 
     op.create_table(
         "orgs",
@@ -172,7 +185,7 @@ def upgrade() -> None:
 
     op.create_table(
         "raw_usage_events",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False, server_default=sa.text("gen_random_uuid()")),
         sa.Column("org_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("orgs.id"), nullable=False),
         sa.Column("connection_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("connections.id")),
         sa.Column("provider", provider_enum, nullable=False),
@@ -192,6 +205,8 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("timezone('utc', now())"),
         ),
+        sa.PrimaryKeyConstraint("id", "ts", name="pk_raw_usage_events"),
+        sa.Index("ix_raw_usage_events_id", "id"),
     )
 
     op.create_index(
