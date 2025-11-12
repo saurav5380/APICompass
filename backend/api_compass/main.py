@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from api_compass.api.routes import health
+from api_compass.api.routes import router as api_router
 from api_compass.core.config import settings
 
 
@@ -12,7 +12,7 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
-    app.include_router(health.router, prefix="/health", tags=["health"])
+    app.include_router(api_router)
 
     return app
 

@@ -23,14 +23,17 @@ from api_compass.models.enums import (
 from api_compass.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 
 
-plan_enum = sa.Enum(PlanType, name="plan_type_enum")
-user_role_enum = sa.Enum(UserRole, name="user_role_enum")
-provider_enum = sa.Enum(ProviderType, name="provider_enum")
-environment_enum = sa.Enum(EnvironmentType, name="environment_enum")
-connection_status_enum = sa.Enum(ConnectionStatus, name="connection_status_enum")
-alert_channel_enum = sa.Enum(AlertChannel, name="alert_channel_enum")
-alert_frequency_enum = sa.Enum(AlertFrequency, name="alert_frequency_enum")
-alert_severity_enum = sa.Enum(AlertSeverity, name="alert_severity_enum")
+enum_kwargs = {"values_callable": lambda enum_cls: [member.value for member in enum_cls]}
+
+
+plan_enum = sa.Enum(PlanType, name="plan_type_enum", **enum_kwargs)
+user_role_enum = sa.Enum(UserRole, name="user_role_enum", **enum_kwargs)
+provider_enum = sa.Enum(ProviderType, name="provider_enum", **enum_kwargs)
+environment_enum = sa.Enum(EnvironmentType, name="environment_enum", **enum_kwargs)
+connection_status_enum = sa.Enum(ConnectionStatus, name="connection_status_enum", **enum_kwargs)
+alert_channel_enum = sa.Enum(AlertChannel, name="alert_channel_enum", **enum_kwargs)
+alert_frequency_enum = sa.Enum(AlertFrequency, name="alert_frequency_enum", **enum_kwargs)
+alert_severity_enum = sa.Enum(AlertSeverity, name="alert_severity_enum", **enum_kwargs)
 
 
 class Org(UUIDPrimaryKeyMixin, TimestampMixin, Base):
