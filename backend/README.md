@@ -13,6 +13,17 @@ uvicorn api_compass.main:app --reload
 
 The service relies on Postgres, Redis, and object storage. When running through Docker Compose (defined at the repo root), environment variables are provided automatically.
 
+## Background workers
+
+Celery powers the hourly provider polls. Run the worker and beat processes locally once the virtualenv is active:
+
+```bash
+celery -A api_compass.celery_app worker --loglevel=info
+celery -A api_compass.celery_app beat --loglevel=info
+```
+
+The Docker Compose file exposes matching services (`celery_worker` and `celery_beat`) so `docker compose up celery_worker celery_beat` keeps the scheduler and worker online alongside Redis.
+
 ## Database migrations
 
 Alembic manages the schema (including Timescale extensions and hypertables).

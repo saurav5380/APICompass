@@ -44,6 +44,36 @@ class Settings(BaseSettings):
         default="redis://localhost:6379/1",
         alias="WORKER_RESULT_BACKEND",
     )
+    worker_poll_interval_seconds: int = Field(
+        default=3600,
+        alias="WORKER_POLL_INTERVAL_SECONDS",
+        ge=300,
+        le=21600,
+    )
+    worker_poll_jitter_ratio: float = Field(
+        default=0.1,
+        alias="WORKER_POLL_JITTER_RATIO",
+        ge=0.0,
+        le=0.5,
+    )
+    worker_retry_max_attempts: int = Field(
+        default=5,
+        alias="WORKER_RETRY_MAX_ATTEMPTS",
+        ge=1,
+        le=10,
+    )
+    worker_retry_backoff_seconds: int = Field(
+        default=30,
+        alias="WORKER_RETRY_BACKOFF_SECONDS",
+        ge=5,
+        le=600,
+    )
+    worker_idempotency_ttl_seconds: int = Field(
+        default=5400,
+        alias="WORKER_IDEMPOTENCY_TTL_SECONDS",
+        ge=60,
+        le=14400,
+    )
 
     secret_key: SecretStr = Field(alias="SECRET_KEY")
     encryption_key: SecretStr = Field(

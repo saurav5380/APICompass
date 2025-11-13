@@ -38,6 +38,40 @@ services:
       redis:
         condition: service_started
 
+  celery_worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: celery -A api_compass.celery_app worker --loglevel=info --concurrency=2
+    env_file:
+      - backend/.env.example
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/api_compass
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: celery -A api_compass.celery_app beat --loglevel=info
+    env_file:
+      - backend/.env.example
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/api_compass
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+    depends_on:
+      redis:
+        condition: service_started
+
   db:
     image: timescale/timescaledb-ha:pg16-all
     environment:
