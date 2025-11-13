@@ -1,12 +1,31 @@
 from __future__ import annotations
 
 import pytest
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config as AlembicConfig
 from fastapi.testclient import TestClient
 from sqlalchemy import delete
 
-from api_compass.db.session import SessionLocal
+from api_compass.db.session import DATABASE_URL, SessionLocal
 from api_compass.main import app
 from api_compass.models.tables import Connection, Org
+
+
+def _alembic_config() -> AlembicConfig:
+    root_dir = Path(__file__).resolve().parents[1]
+    config_path = root_dir / "alembic.ini"
+    cfg = AlembicConfig(str(config_path))
+    cfg.set_main_option("script_location", str(root_dir / "alembic"))
+    cfg.set_main_option("sqlalchemy.url", DATABASE_URL)
+    return cfg
+
+
+@pytest.fixture(scope="session", autouse=True)
+def apply_migrations() -> None:
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
 
 
 @pytest.fixture(scope="session")

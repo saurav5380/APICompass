@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import random
 import time
 from datetime import datetime, timezone
@@ -15,6 +16,7 @@ from api_compass.core.config import settings
 from api_compass.db.session import SessionLocal
 from api_compass.models.enums import ConnectionStatus, ProviderType
 from api_compass.models.tables import Connection
+from api_compass.services import usage as usage_service
 from api_compass.services.jobs import redis_client
 
 logger = get_task_logger(__name__)
@@ -93,8 +95,7 @@ def _active_connections(session: Session, provider: ProviderType) -> list[Connec
     return session.execute(stmt).scalars().all()
 
 
-def _simulate_provider_call(connection: Connection) -> None:
-    """Placeholder for provider SDK/HTTP call with deterministic retry hooks."""
+def _maybe_raise_simulated_error(connection: Connection) -> None:
     metadata = connection.metadata_json or {}
     status_override = metadata.get("simulate_status")
     if status_override is None:
@@ -150,9 +151,25 @@ def _poll_provider(provider: ProviderType) -> int:
                 continue
 
             _apply_jitter_delay(len(connections))
-            _simulate_provider_call(connection)
+            ts = _now()
+            _maybe_raise_simulated_error(connection)
+            samples = usage_service.build_provider_samples(connection, ts)
+            if not samples:
+                logger.info("Connection %s has no usage samples for provider %s", connection.id, provider.value)
+                continue
 
-            connection.last_synced_at = _now()
+            created = usage_service.save_usage_samples(session, samples)
+            if created == 0:
+                logger.info("Usage already ingested for %s connection %s at %s", provider.value, connection.id, ts.date())
+                continue
+
+            session.flush()
+            mtd_spend = usage_service.month_to_date_spend(
+                session, connection.org_id, connection.provider, connection.environment
+            )
+            summary = usage_service.describe_samples(samples)
+
+            connection.last_synced_at = ts
             session.add(connection)
             try:
                 session.commit()
@@ -162,10 +179,13 @@ def _poll_provider(provider: ProviderType) -> int:
 
             processed += 1
             logger.info(
-                "Polled %s connection=%s org=%s status=success",
+                "Polled %s connection=%s org=%s metrics=%s daily_cost=%s mtd_cost=%s",
                 provider.value,
                 connection.id,
                 connection.org_id,
+                summary["metrics"],
+                summary["total_cost"],
+                mtd_spend,
             )
 
     duration = time.monotonic() - start

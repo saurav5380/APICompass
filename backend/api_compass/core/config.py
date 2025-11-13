@@ -18,7 +18,7 @@ PLACEHOLDER_VALUES = {"", "replace-me", "changeme"}
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(".env", ".env.local"),
+        env_file=(".env", ".env.local", ".env.example"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
