@@ -24,6 +24,16 @@ celery -A api_compass.celery_app beat --loglevel=info
 
 The Docker Compose file exposes matching services (`celery_worker` and `celery_beat`) so `docker compose up celery_worker celery_beat` keeps the scheduler and worker online alongside Redis.
 
+### Usage aggregates
+
+Usage dashboards read from the `daily_usage_costs` aggregate table. To backfill the last 45 days on demand, run:
+
+```bash
+celery -A api_compass.celery_app call usage.refresh_daily_usage_costs
+```
+
+You can pass a custom day window via `--args='[30]'`.
+
 ## Database migrations
 
 Alembic manages the schema (including Timescale extensions and hypertables).

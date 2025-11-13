@@ -9,7 +9,10 @@ celery_app = Celery(
     "api_compass",
     broker=str(settings.worker_broker_url),
     backend=str(settings.worker_result_backend),
-    include=["api_compass.workers.polling"],
+    include=[
+        "api_compass.workers.polling",
+        "api_compass.workers.aggregates",
+    ],
 )
 
 celery_app.conf.update(

@@ -74,6 +74,18 @@ class Settings(BaseSettings):
         ge=60,
         le=14400,
     )
+    usage_backfill_days: int = Field(
+        default=45,
+        alias="USAGE_BACKFILL_DAYS",
+        ge=1,
+        le=120,
+    )
+    usage_backfill_timeout_seconds: int = Field(
+        default=300,
+        alias="USAGE_BACKFILL_TIMEOUT_SECONDS",
+        ge=30,
+        le=1800,
+    )
 
     secret_key: SecretStr = Field(alias="SECRET_KEY")
     encryption_key: SecretStr = Field(
