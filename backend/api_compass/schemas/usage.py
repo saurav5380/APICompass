@@ -19,5 +19,11 @@ class UsageProjection(BaseModel):
     rolling_avg_14d: Decimal | None = None
     sample_days: int
     tooltip: str
+    budget_limit: Decimal | None = None
+    budget_remaining: Decimal | None = None
+    budget_gap: Decimal | None = None
+    budget_consumed_percent: float | None = None
+    budget_source: str | None = None
+    over_budget: bool = False
 
     model_config = {"from_attributes": True}

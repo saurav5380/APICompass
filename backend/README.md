@@ -34,6 +34,15 @@ celery -A api_compass.celery_app call usage.refresh_daily_usage_costs
 
 You can pass a custom day window via `--args='[30]'`.
 
+### Alerts & digests
+
+Celery manages alert evaluations (`alerts.evaluate`) every 15 minutes and daily usage digests (`alerts.daily_digest`). Configure recipients through `ALERTS_DEFAULT_RECIPIENT` and quiet hours via `ALERTS_QUIET_HOURS_*`. To run the sweep manually:
+
+```bash
+celery -A api_compass.celery_app call alerts.evaluate
+celery -A api_compass.celery_app call alerts.daily_digest
+```
+
 ## Database migrations
 
 Alembic manages the schema (including Timescale extensions and hypertables).

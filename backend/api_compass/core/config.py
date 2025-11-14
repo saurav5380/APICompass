@@ -74,6 +74,48 @@ class Settings(BaseSettings):
         ge=60,
         le=14400,
     )
+    alerts_default_recipient: str | None = Field(
+        default=None,
+        alias="ALERTS_DEFAULT_RECIPIENT",
+        description="Fallback email address for alert notifications and digests.",
+    )
+    alerts_email_sender: str = Field(
+        default="alerts@api-compass.local",
+        alias="ALERTS_EMAIL_SENDER",
+    )
+    alerts_quiet_hours_start: str = Field(
+        default="22:00",
+        alias="ALERTS_QUIET_HOURS_START",
+        description="UTC time (HH:MM) when alerts pause.",
+    )
+    alerts_quiet_hours_end: str = Field(
+        default="06:00",
+        alias="ALERTS_QUIET_HOURS_END",
+        description="UTC time (HH:MM) when alerts resume.",
+    )
+    alerts_spike_multiplier: float = Field(
+        default=1.5,
+        alias="ALERTS_SPIKE_MULTIPLIER",
+        ge=1.1,
+        le=5.0,
+    )
+    alerts_spike_minimum: float = Field(
+        default=100.0,
+        alias="ALERTS_SPIKE_MINIMUM",
+        ge=0.0,
+    )
+    alerts_digest_hour_utc: int = Field(
+        default=12,
+        alias="ALERTS_DIGEST_HOUR_UTC",
+        ge=0,
+        le=23,
+    )
+    alerts_debounce_minutes: int = Field(
+        default=60,
+        alias="ALERTS_DEBOUNCE_MINUTES",
+        ge=5,
+        le=360,
+    )
     usage_backfill_days: int = Field(
         default=45,
         alias="USAGE_BACKFILL_DAYS",

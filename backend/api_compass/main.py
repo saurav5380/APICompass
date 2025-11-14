@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from api_compass.api.routes import router as api_router
 from api_compass.core.config import settings
+from fastapi.middleware.cors import CORSMiddleware
 
 
 def create_app() -> FastAPI:
@@ -12,6 +13,13 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.include_router(api_router)
 
     return app

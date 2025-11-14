@@ -12,6 +12,7 @@ celery_app = Celery(
     include=[
         "api_compass.workers.polling",
         "api_compass.workers.aggregates",
+        "api_compass.workers.alerts",
     ],
 )
 
@@ -40,6 +41,16 @@ celery_app.conf.beat_schedule = {
         "task": "api_compass.workers.polling.poll_sendgrid",
         "schedule": crontab(minute=0),
         "options": {"queue": "polling"},
+    },
+    "alerts-evaluate": {
+        "task": "alerts.evaluate",
+        "schedule": crontab(minute="*/15"),
+        "options": {"queue": "alerts"},
+    },
+    "alerts-daily-digest": {
+        "task": "alerts.daily_digest",
+        "schedule": crontab(minute=0, hour=settings.alerts_digest_hour_utc),
+        "options": {"queue": "alerts"},
     },
 }
 

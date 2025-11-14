@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from api_compass.db.session import engine
 from api_compass.models.enums import EnvironmentType, ProviderType
-from api_compass.models.tables import Connection, DailyUsageCost, RawUsageEvent
+from api_compass.models.tables import Budget, Connection, DailyUsageCost, RawUsageEvent
 
 USAGE_EVENT_NAMESPACE = UUID("f4e8b4a0-9bd3-4f16-9930-49f9f1469ef8")
 MONEY_QUANT = Decimal("0.01")
@@ -252,6 +252,33 @@ def build_provider_samples(connection: Connection, ts: datetime) -> list[UsageSa
     return generator(connection, ts)
 
 
+def _load_budget_index(session: Session, org_id: UUID) -> dict[tuple[ProviderType | None, EnvironmentType], Budget]:
+    stmt = select(Budget).where(Budget.org_id == org_id)
+    budgets = session.execute(stmt).scalars().all()
+    index: dict[tuple[ProviderType | None, EnvironmentType], Budget] = {}
+    for budget in budgets:
+        env = budget.environment or EnvironmentType.PROD
+        index[(budget.provider, env)] = budget
+    return index
+
+
+def _match_budget(
+    index: dict[tuple[ProviderType | None, EnvironmentType], Budget],
+    provider: ProviderType,
+    environment: EnvironmentType,
+) -> BudgetMatch | None:
+    env = environment or EnvironmentType.PROD
+    provider_key = index.get((provider, env))
+    if provider_key:
+        return BudgetMatch(budget=provider_key, scope="provider")
+
+    org_key = index.get((None, env))
+    if org_key:
+        return BudgetMatch(budget=org_key, scope="org")
+
+    return None
+
+
 def refresh_daily_usage_costs(days: int, *, max_seconds: int, chunk_days: int = 5) -> dict[str, Any]:
     if days <= 0:
         raise ValueError("days must be positive")
@@ -319,7 +346,19 @@ class ProjectionSummary:
     rolling_avg_7d: Decimal | None
     rolling_avg_14d: Decimal | None
     sample_days: int
+    budget_limit: Decimal | None = None
+    budget_remaining: Decimal | None = None
+    budget_gap: Decimal | None = None
+    budget_consumed_percent: float | None = None
+    budget_source: str | None = None
+    over_budget: bool = False
     tooltip: str = PROJECTION_TOOLTIP
+
+
+@dataclass(slots=True, frozen=True)
+class BudgetMatch:
+    budget: Budget
+    scope: str
 
 
 def get_usage_projections(
@@ -335,6 +374,8 @@ def get_usage_projections(
 
     if days_elapsed <= 0:
         return []
+
+    budget_index = _load_budget_index(session, org_id)
 
     query = (
         select(
@@ -375,6 +416,7 @@ def get_usage_projections(
     for prov, payload in grouped.items():
         day_map: dict[date, Decimal] = payload["days"]
         series = _build_daily_series(day_map, month_start, days_elapsed)
+        budget_match = _match_budget(budget_index, prov, environment)
         summary = _build_projection_for_series(
             provider=prov,
             environment=environment,
@@ -382,6 +424,7 @@ def get_usage_projections(
             daily_series=series,
             days_in_month=days_in_month,
             today=today,
+            budget_match=budget_match,
         )
         summaries.append(summary)
 
@@ -406,6 +449,7 @@ def _build_projection_for_series(
     daily_series: Sequence[Decimal],
     days_in_month: int,
     today: date,
+    budget_match: BudgetMatch | None,
 ) -> ProjectionSummary:
     month_to_date = sum(daily_series, start=Decimal("0"))
     avg_7 = _rolling_average(daily_series, 7)
@@ -433,10 +477,31 @@ def _build_projection_for_series(
     projected_min = max(projected_total - band, Decimal("0"))
     projected_max = projected_total + band
 
+    budget_limit: Decimal | None = None
+    budget_remaining: Decimal | None = None
+    budget_gap: Decimal | None = None
+    budget_consumed_percent: float | None = None
+    budget_source: str | None = None
+    over_budget = False
+    display_currency = currency or "usd"
+
+    if budget_match:
+        budget = budget_match.budget
+        display_currency = budget.currency or display_currency
+        cap = Decimal(budget.monthly_cap)
+        budget_limit = cap
+        budget_remaining = max(cap - month_to_date, Decimal("0"))
+        budget_gap = cap - projected_total
+        over_budget = budget_gap < 0
+        if cap > 0:
+            percent = (projected_total / cap) * Decimal("100")
+            budget_consumed_percent = float(percent)
+        budget_source = budget_match.scope
+
     return ProjectionSummary(
         provider=provider,
         environment=environment,
-        currency=currency or "usd",
+        currency=display_currency,
         month_to_date=_quantize_money(month_to_date),
         projected_total=_quantize_money(projected_total),
         projected_min=_quantize_money(projected_min),
@@ -444,6 +509,12 @@ def _build_projection_for_series(
         rolling_avg_7d=_quantize_money(avg_7) if avg_7 is not None else None,
         rolling_avg_14d=_quantize_money(avg_14) if avg_14 is not None else None,
         sample_days=len(daily_series),
+        budget_limit=_quantize_optional(budget_limit),
+        budget_remaining=_quantize_optional(budget_remaining),
+        budget_gap=_quantize_optional(budget_gap),
+        budget_consumed_percent=budget_consumed_percent,
+        budget_source=budget_source,
+        over_budget=over_budget,
     )
 
 
@@ -504,4 +575,10 @@ def _confidence_band(series: Sequence[Decimal], remaining_days: int) -> Decimal:
 def _quantize_money(value: Decimal | None) -> Decimal:
     if value is None:
         return Decimal("0").quantize(MONEY_QUANT)
+    return value.quantize(MONEY_QUANT, rounding=ROUND_HALF_UP)
+
+
+def _quantize_optional(value: Decimal | None) -> Decimal | None:
+    if value is None:
+        return None
     return value.quantize(MONEY_QUANT, rounding=ROUND_HALF_UP)

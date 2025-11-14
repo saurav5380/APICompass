@@ -44,6 +44,12 @@ def read_usage_projections(
             rolling_avg_14d=projection.rolling_avg_14d,
             sample_days=projection.sample_days,
             tooltip=projection.tooltip,
+            budget_limit=projection.budget_limit,
+            budget_remaining=projection.budget_remaining,
+            budget_gap=projection.budget_gap,
+            budget_consumed_percent=projection.budget_consumed_percent,
+            budget_source=projection.budget_source,
+            over_budget=projection.over_budget,
         )
         for projection in projections
     ]

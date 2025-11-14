@@ -10,7 +10,7 @@ from sqlalchemy import delete
 
 from api_compass.db.session import DATABASE_URL, SessionLocal
 from api_compass.main import app
-from api_compass.models.tables import Connection, Org
+from api_compass.models.tables import Budget, Connection, DailyUsageCost, Org
 
 
 def _alembic_config() -> AlembicConfig:
@@ -51,6 +51,8 @@ def org_headers(db_session):
 
     yield {"X-Org-Id": str(org.id)}, org.id
 
+    db_session.execute(delete(DailyUsageCost).where(DailyUsageCost.org_id == org.id))
     db_session.execute(delete(Connection).where(Connection.org_id == org.id))
+    db_session.execute(delete(Budget).where(Budget.org_id == org.id))
     db_session.execute(delete(Org).where(Org.id == org.id))
     db_session.commit()

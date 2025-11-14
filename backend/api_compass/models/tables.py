@@ -200,6 +200,30 @@ class AlertRule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     budget: Mapped[Budget | None] = relationship("Budget", back_populates="alerts")
 
 
+class AlertEvent(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "alert_events"
+
+    org_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), sa.ForeignKey("orgs.id"), nullable=False)
+    budget_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), sa.ForeignKey("budgets.id", ondelete="SET NULL"))
+    provider: Mapped[ProviderType | None] = mapped_column(provider_enum, nullable=True)
+    environment: Mapped[EnvironmentType | None] = mapped_column(environment_enum, nullable=True)
+    alert_type: Mapped[str] = mapped_column(sa.String(length=50), nullable=False)
+    channel: Mapped[AlertChannel] = mapped_column(alert_channel_enum, nullable=False)
+    severity: Mapped[AlertSeverity] = mapped_column(alert_severity_enum, nullable=False)
+    message: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB)
+    triggered_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.text("timezone('utc', now())"), nullable=False
+    )
+
+    org: Mapped[Org] = relationship("Org")
+    budget: Mapped[Budget | None] = relationship("Budget")
+
+    __table_args__ = (
+        sa.Index("ix_alert_events_org_time", "org_id", "triggered_at"),
+    )
+
+
 class AuditLogEntry(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "audit_log"
 
