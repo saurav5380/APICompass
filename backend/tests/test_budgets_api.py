@@ -4,10 +4,22 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from contextlib import contextmanager
+
 from sqlalchemy import select
 
+from api_compass.db.session import apply_rls_scope, reset_rls_scope
 from api_compass.models.enums import EnvironmentType, ProviderType
 from api_compass.models.tables import Budget
+
+
+@contextmanager
+def _scoped(session, org_id):
+    apply_rls_scope(session, org_id)
+    try:
+        yield
+    finally:
+        reset_rls_scope(session)
 
 
 def test_create_budget(client, db_session, org_headers):
@@ -25,8 +37,10 @@ def test_create_budget(client, db_session, org_headers):
     assert data["currency"] == "USD"
     assert data["provider"] == "openai"
 
-    stored = db_session.execute(select(Budget).where(Budget.org_id == org_id)).scalar_one()
-    assert stored.monthly_cap == Decimal("2500")
+    with _scoped(db_session, org_id):
+        with _scoped(db_session, org_id):
+            stored = db_session.execute(select(Budget).where(Budget.org_id == org_id)).scalar_one()
+        assert stored.monthly_cap == Decimal("2500")
 
 
 def test_upsert_budget_overwrites_existing(client, db_session, org_headers):
@@ -45,13 +59,14 @@ def test_upsert_budget_overwrites_existing(client, db_session, org_headers):
     assert second.status_code == 201
     assert second.json()["monthly_cap"] == "2000.00"
 
-    stored = db_session.execute(
-        select(Budget).where(
-            Budget.org_id == org_id,
-            Budget.provider == ProviderType.SENDGRID,
-            Budget.environment == EnvironmentType.PROD,
-        )
-    ).scalar_one()
+    with _scoped(db_session, org_id):
+        stored = db_session.execute(
+            select(Budget).where(
+                Budget.org_id == org_id,
+                Budget.provider == ProviderType.SENDGRID,
+                Budget.environment == EnvironmentType.PROD,
+            )
+        ).scalar_one()
     assert stored.monthly_cap == Decimal("2000")
 
 
@@ -69,7 +84,8 @@ def test_delete_budget(client, db_session, org_headers):
     delete_response = client.delete(f"/budgets/{budget_id}", headers=headers)
     assert delete_response.status_code == 204
 
-    rows = db_session.execute(select(Budget).where(Budget.org_id == org_id)).scalars().all()
+    with _scoped(db_session, org_id):
+        rows = db_session.execute(select(Budget).where(Budget.org_id == org_id)).scalars().all()
     assert rows == []
 
 

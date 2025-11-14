@@ -43,6 +43,10 @@ celery -A api_compass.celery_app call alerts.evaluate
 celery -A api_compass.celery_app call alerts.daily_digest
 ```
 
+### Actionable tips
+
+`GET /usage/tips?environment=prod` returns heuristic suggestions (model mix, duplicate prompts, SendGrid plan usage). Each tip explains why it surfaced and links to docs/blog posts so the dashboard “tips” cards stay in sync with the API.
+
 ## Database migrations
 
 Alembic manages the schema (including Timescale extensions and hypertables).

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from decimal import Decimal
+from contextlib import contextmanager
 
 import pytest
 from sqlalchemy import delete
@@ -12,9 +13,17 @@ from api_compass.models.tables import Budget, DailyUsageCost, Org
 from api_compass.services import usage as usage_service
 
 
-def _seed_daily_costs(session, org_id, provider, environment, start_day, values):
+@contextmanager
+def _scoped(session, org_id):
     apply_rls_scope(session, org_id)
     try:
+        yield
+    finally:
+        reset_rls_scope(session)
+
+
+def _seed_daily_costs(session, org_id, provider, environment, start_day, values):
+    with _scoped(session, org_id):
         for idx, value in enumerate(values):
             session.add(
                 DailyUsageCost(
@@ -28,8 +37,6 @@ def _seed_daily_costs(session, org_id, provider, environment, start_day, values)
                 )
             )
         session.commit()
-    finally:
-        reset_rls_scope(session)
 
 
 def test_usage_projection_service(db_session):
@@ -45,8 +52,9 @@ def test_usage_projection_service(db_session):
         monthly_cap=Decimal("5000"),
         currency="usd",
     )
-    db_session.add(budget)
-    db_session.commit()
+    with _scoped(db_session, org.id):
+        db_session.add(budget)
+        db_session.commit()
 
     today = date.today()
     month_start = today.replace(day=1)
@@ -75,8 +83,10 @@ def test_usage_projection_service(db_session):
     assert summary.budget_limit == Decimal("5000.00")
     assert summary.budget_source == "provider"
 
-    db_session.execute(delete(DailyUsageCost).where(DailyUsageCost.org_id == org.id))
-    db_session.execute(delete(Budget).where(Budget.org_id == org.id))
+    with _scoped(db_session, org.id):
+        db_session.execute(delete(DailyUsageCost).where(DailyUsageCost.org_id == org.id))
+        db_session.execute(delete(Budget).where(Budget.org_id == org.id))
+        db_session.commit()
     db_session.execute(delete(Org).where(Org.id == org.id))
     db_session.commit()
 
@@ -96,16 +106,17 @@ def test_usage_projection_endpoint(client, db_session, org_headers):
         values=values,
     )
 
-    db_session.add(
-        Budget(
-            org_id=org_id,
-            provider=None,
-            environment=EnvironmentType.PROD,
-            monthly_cap=Decimal("4000"),
-            currency="usd",
+    with _scoped(db_session, org_id):
+        db_session.add(
+            Budget(
+                org_id=org_id,
+                provider=None,
+                environment=EnvironmentType.PROD,
+                monthly_cap=Decimal("4000"),
+                currency="usd",
+            )
         )
-    )
-    db_session.commit()
+        db_session.commit()
 
     response = client.get("/usage/projections", headers=headers, params={"environment": "prod"})
     assert response.status_code == 200
@@ -117,6 +128,7 @@ def test_usage_projection_endpoint(client, db_session, org_headers):
     assert projection["budget_limit"] == "4000.00"
     assert projection["budget_source"] == "org"
 
-    db_session.execute(delete(DailyUsageCost).where(DailyUsageCost.org_id == org_id))
-    db_session.execute(delete(Budget).where(Budget.org_id == org_id))
-    db_session.commit()
+    with _scoped(db_session, org_id):
+        db_session.execute(delete(DailyUsageCost).where(DailyUsageCost.org_id == org_id))
+        db_session.execute(delete(Budget).where(Budget.org_id == org_id))
+        db_session.commit()

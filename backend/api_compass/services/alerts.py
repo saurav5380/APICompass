@@ -157,6 +157,7 @@ def _build_candidates_for_budget(
     provider = summary.provider if budget.provider else None
     environment = summary.environment
 
+    over_cap_triggered = False
     if summary.projected_total > cap:
         message = (
             f"{provider.value if provider else 'All providers'} ({environment.value}) projected "
@@ -173,9 +174,10 @@ def _build_candidates_for_budget(
                 metadata={"projected_total": str(summary.projected_total), "cap": str(cap)},
             )
         )
+        over_cap_triggered = True
 
     threshold = (cap * Decimal(budget.threshold_percent) / Decimal("100")).quantize(Decimal("0.01"))
-    if summary.projected_total >= threshold and summary.projected_total <= cap:
+    if not over_cap_triggered and summary.projected_total >= threshold and summary.projected_total <= cap:
         message = (
             f"{provider.value if provider else 'All providers'} ({environment.value}) forecast "
             f"{summary.projected_total} which is above the {budget.threshold_percent}% tier ({threshold})."

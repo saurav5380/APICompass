@@ -27,3 +27,10 @@ class UsageProjection(BaseModel):
     over_budget: bool = False
 
     model_config = {"from_attributes": True}
+
+
+class UsageTip(BaseModel):
+    title: str
+    body: str
+    reason: str
+    link: str

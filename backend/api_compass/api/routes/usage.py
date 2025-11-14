@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 
 from api_compass.api.deps import OrgScope, get_db_session, get_org_scope
 from api_compass.models.enums import EnvironmentType, ProviderType
-from api_compass.schemas import UsageProjection
+from api_compass.schemas import UsageProjection, UsageTip
+from api_compass.services import tips as tips_service
 from api_compass.services import usage as usage_service
 
 router = APIRouter(prefix="/usage", tags=["usage"])
@@ -53,3 +54,17 @@ def read_usage_projections(
         )
         for projection in projections
     ]
+
+
+@router.get("/tips", response_model=list[UsageTip])
+def read_usage_tips(
+    environment: EnvironmentType = EnvironmentType.PROD,
+    session: Session = Depends(get_db_session),
+    org_scope: OrgScope = Depends(get_org_scope),
+) -> list[UsageTip]:
+    tips = tips_service.get_usage_tips(
+        session=session,
+        org_id=org_scope.org_id,
+        environment=environment,
+    )
+    return tips
