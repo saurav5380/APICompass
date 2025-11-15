@@ -13,6 +13,7 @@ celery_app = Celery(
         "api_compass.workers.polling",
         "api_compass.workers.aggregates",
         "api_compass.workers.alerts",
+        "api_compass.workers.entitlements",
     ],
 )
 
@@ -51,6 +52,11 @@ celery_app.conf.beat_schedule = {
         "task": "alerts.daily_digest",
         "schedule": crontab(minute=0, hour=settings.alerts_digest_hour_utc),
         "options": {"queue": "alerts"},
+    },
+    "entitlements-expire-trials": {
+        "task": "entitlements.expire_trials",
+        "schedule": crontab(minute="*/5"),
+        "options": {"queue": "billing"},
     },
 }
 

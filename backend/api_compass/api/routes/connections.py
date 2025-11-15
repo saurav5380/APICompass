@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from api_compass.api.deps import OrgScope, get_db_session, get_org_scope
 from api_compass.schemas import ConnectionCreate, ConnectionRead
 from api_compass.services import connections as connection_service
+from api_compass.services.entitlements import PlanLimitError
 
 router = APIRouter(prefix="/connections", tags=["connections"])
 
@@ -24,6 +25,8 @@ def create_connection(
     except IntegrityError as exc:
         detail = "Connection already exists for this provider/environment."
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail) from exc
+    except PlanLimitError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
 
 
 @router.get("/", response_model=list[ConnectionRead])

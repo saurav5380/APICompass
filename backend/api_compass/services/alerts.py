@@ -22,6 +22,7 @@ from api_compass.models import (
     ProviderType,
 )
 from api_compass.models.enums import EnvironmentType
+from api_compass.services import entitlements as entitlement_service
 from api_compass.services import notifications, usage
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,9 @@ def evaluate_all_orgs() -> None:
 
 def evaluate_alerts_for_org(org_id: UUID) -> None:
     with SessionLocal() as session:
+        entitlements = entitlement_service.get_entitlements(session, org_id)
+        if not entitlements.alerts_enabled:
+            return
         budgets = session.execute(select(Budget).where(Budget.org_id == org_id)).scalars().all()
         if not budgets:
             return
@@ -102,6 +106,9 @@ def send_daily_digests() -> None:
 def send_daily_digest_for_org(org_id: UUID, target_day: date | None = None) -> None:
     day = target_day or (date.today() - timedelta(days=1))
     with SessionLocal() as session:
+        entitlements = entitlement_service.get_entitlements(session, org_id)
+        if entitlements.digest_frequency == "weekly" and day.weekday() != 0:
+            return
         existing = _recent_event(
             session=session,
             org_id=org_id,

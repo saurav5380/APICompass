@@ -84,3 +84,11 @@ def get_db_session(org_scope: Annotated[OrgScope, Depends(get_org_scope)]) -> It
     finally:
         reset_rls_scope(session)
         session.close()
+
+
+def get_system_session() -> Iterator[Session]:
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()

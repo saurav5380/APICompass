@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from api_compass.models.enums import ConnectionStatus
 from api_compass.models.tables import Connection
 from api_compass.schemas.connections import ConnectionCreate, ConnectionRead
+from api_compass.services import entitlements as entitlement_service
 from api_compass.services import jobs
 from api_compass.utils.crypto import encrypt_auth_payload, mask_secret
 
@@ -40,6 +41,7 @@ def _build_response(connection: Connection) -> ConnectionRead:
 
 
 def create_connection(session: Session, org_id: UUID, payload: ConnectionCreate) -> ConnectionRead:
+    entitlement_service.ensure_connection_slot(session, org_id)
     secret = payload.api_key.get_secret_value()
     encrypted_auth = encrypt_auth_payload(
         {

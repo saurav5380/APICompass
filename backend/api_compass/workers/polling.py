@@ -16,6 +16,7 @@ from api_compass.core.config import settings
 from api_compass.db.session import SessionLocal
 from api_compass.models.enums import ConnectionStatus, ProviderType
 from api_compass.models.tables import Connection
+from api_compass.services import entitlements as entitlement_service
 from api_compass.services import usage as usage_service
 from api_compass.services.jobs import redis_client
 
@@ -137,6 +138,7 @@ def _poll_provider(provider: ProviderType) -> int:
     processed = 0
     start = time.monotonic()
     redis_conn = redis_client()
+    entitlements_cache: dict[UUID, entitlement_service.FeatureSnapshot] = {}
 
     with SessionLocal() as session:
         connections = _active_connections(session, provider)
@@ -149,9 +151,15 @@ def _poll_provider(provider: ProviderType) -> int:
         for connection in connections:
             if not _acquire_idempotency_lock(redis_conn, provider, connection.id, bucket):
                 continue
+            snapshot = entitlements_cache.get(connection.org_id)
+            if snapshot is None:
+                snapshot = entitlement_service.get_entitlements(session, connection.org_id)
+                entitlements_cache[connection.org_id] = snapshot
+            ts = _now()
+            if not entitlement_service.allow_sync(snapshot, connection.last_synced_at, ts):
+                continue
 
             _apply_jitter_delay(len(connections))
-            ts = _now()
             _maybe_raise_simulated_error(connection)
             samples = usage_service.build_provider_samples(connection, ts)
             if not samples:

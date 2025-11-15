@@ -51,6 +51,29 @@ class Org(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     budgets: Mapped[list["Budget"]] = relationship("Budget", back_populates="org")
     alerts: Mapped[list["AlertRule"]] = relationship("AlertRule", back_populates="org")
+    entitlements: Mapped["OrgEntitlement"] = relationship(
+        "OrgEntitlement", back_populates="org", cascade="all, delete-orphan", uselist=False
+    )
+
+
+class OrgEntitlement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "org_entitlements"
+
+    org_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), sa.ForeignKey("orgs.id"), nullable=False, unique=True
+    )
+    plan: Mapped[PlanType] = mapped_column(plan_enum, nullable=False, server_default=PlanType.FREE.value)
+    max_providers: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default="1")
+    sync_interval_minutes: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default="1440")
+    digest_frequency: Mapped[str] = mapped_column(sa.String(length=20), nullable=False, server_default="weekly")
+    alerts_enabled: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.false())
+    tips_enabled: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.false())
+    trial_ends_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    stripe_subscription_id: Mapped[str | None] = mapped_column(sa.String(length=255))
+    stripe_price_id: Mapped[str | None] = mapped_column(sa.String(length=255))
+    stripe_status: Mapped[str] = mapped_column(sa.String(length=50), nullable=False, server_default="inactive")
+
+    org: Mapped["Org"] = relationship("Org", back_populates="entitlements")
 
 
 class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):

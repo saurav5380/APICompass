@@ -16,6 +16,7 @@ from .tables import (
     Connection,
     DailyUsageCost,
     Org,
+    OrgEntitlement,
     RawUsageEvent,
     User,
 )
@@ -36,6 +37,7 @@ __all__ = [
     "PlanType",
     "ProviderType",
     "RawUsageEvent",
+    "OrgEntitlement",
     "User",
     "UserRole",
 ]

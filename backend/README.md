@@ -47,6 +47,17 @@ celery -A api_compass.celery_app call alerts.daily_digest
 
 `GET /usage/tips?environment=prod` returns heuristic suggestions (model mix, duplicate prompts, SendGrid plan usage). Each tip explains why it surfaced and links to docs/blog posts so the dashboard “tips” cards stay in sync with the API.
 
+### Plans & Stripe bootstrap
+
+Entitlements map to Stripe products/prices. Run the helper to create/update the catalog (Pro ships with a 14-day trial):
+
+```bash
+cd backend
+python -m api_compass.scripts.bootstrap_plans --currency usd
+```
+
+Expose the webhook at `/api/billing/webhook` and point Stripe to it (using the `STRIPE_WEBHOOK_SECRET`). The endpoint listens for subscription create/update/delete events and updates each org’s feature flags within a minute. A Celery task (`entitlements.expire_trials`) sweeps every five minutes to downgrade organizations whose trials ended without payment.
+
 ## Database migrations
 
 Alembic manages the schema (including Timescale extensions and hypertables).

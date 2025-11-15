@@ -23,7 +23,8 @@ dependencies = [
   "pendulum>=3.0.0",
   "python-jose[cryptography]>=3.3.0",
   "cryptography>=42.0.0",
-  "passlib[bcrypt]>=1.7.4"
+  "passlib[bcrypt]>=1.7.4",
+  "stripe>=10.8.0"
 ]
 
 [project.optional-dependencies]
