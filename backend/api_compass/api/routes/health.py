@@ -31,7 +31,8 @@ def _check_worker() -> dict[str, str]:
             socket_timeout=2,
         )
         client.ping()
-        return {"status": "ok"}
+        queues = client.zcard("connections:sync-jobs")
+        return {"status": "ok", "queue_depth": str(queues)}
     except redis.RedisError as exc:
         return {"status": "error", "detail": str(exc)}
 
@@ -57,3 +58,8 @@ def read_healthz() -> JSONResponse:
     }
 
     return JSONResponse(status_code=status_code, content=payload)
+
+
+@router.get("/status", summary="Public uptime ping")
+def read_status() -> dict[str, str]:
+    return {"status": "ok", "service": settings.project_name, "version": settings.version}

@@ -16,6 +16,7 @@ from api_compass.core.config import settings
 from api_compass.db.session import SessionLocal
 from api_compass.models.enums import ConnectionStatus, ProviderType
 from api_compass.models.tables import Connection
+from api_compass.core import telemetry
 from api_compass.services import entitlements as entitlement_service
 from api_compass.services import usage as usage_service
 from api_compass.services.jobs import redis_client
@@ -160,41 +161,53 @@ def _poll_provider(provider: ProviderType) -> int:
                 continue
 
             _apply_jitter_delay(len(connections))
-            _maybe_raise_simulated_error(connection)
-            samples = usage_service.build_provider_samples(connection, ts)
-            if not samples:
-                logger.info("Connection %s has no usage samples for provider %s", connection.id, provider.value)
-                continue
-
-            created = usage_service.save_usage_samples(session, samples)
-            if created == 0:
-                logger.info("Usage already ingested for %s connection %s at %s", provider.value, connection.id, ts.date())
-                continue
-
-            session.flush()
-            mtd_spend = usage_service.month_to_date_spend(
-                session, connection.org_id, connection.provider, connection.environment
-            )
-            summary = usage_service.describe_samples(samples)
-
-            connection.last_synced_at = ts
-            session.add(connection)
             try:
-                session.commit()
-            except Exception:
-                session.rollback()
-                raise
+                _maybe_raise_simulated_error(connection)
+                samples = usage_service.build_provider_samples(connection, ts)
+                if not samples:
+                    logger.info("Connection %s has no usage samples for provider %s", connection.id, provider.value)
+                    continue
 
-            processed += 1
-            logger.info(
-                "Polled %s connection=%s org=%s metrics=%s daily_cost=%s mtd_cost=%s",
-                provider.value,
-                connection.id,
-                connection.org_id,
-                summary["metrics"],
-                summary["total_cost"],
-                mtd_spend,
-            )
+                created = usage_service.save_usage_samples(session, samples)
+                if created == 0:
+                    logger.info("Usage already ingested for %s connection %s at %s", provider.value, connection.id, ts.date())
+                    continue
+
+                session.flush()
+                mtd_spend = usage_service.month_to_date_spend(
+                    session, connection.org_id, connection.provider, connection.environment
+                )
+                summary = usage_service.describe_samples(samples)
+
+                connection.last_synced_at = ts
+                session.add(connection)
+                try:
+                    session.commit()
+                except Exception:
+                    session.rollback()
+                    raise
+
+                processed += 1
+                logger.info(
+                    "Polled %s connection=%s org=%s metrics=%s daily_cost=%s mtd_cost=%s",
+                    provider.value,
+                    connection.id,
+                    connection.org_id,
+                    summary["metrics"],
+                    summary["total_cost"],
+                    mtd_spend,
+                )
+            except Exception as exc:
+                telemetry.capture_exception(
+                    exc,
+                    {
+                        "org_id": str(connection.org_id),
+                        "connection_id": str(connection.id),
+                        "provider": connection.provider.value,
+                        "environment": connection.environment.value,
+                    },
+                )
+                logger.exception("Polling failed for connection %s org %s", connection.id, connection.org_id)
 
     duration = time.monotonic() - start
     logger.info("Finished %s poll with %s successful syncs in %.2fs", provider.value, processed, duration)

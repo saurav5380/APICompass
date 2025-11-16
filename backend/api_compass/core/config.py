@@ -116,6 +116,7 @@ class Settings(BaseSettings):
         ge=5,
         le=360,
     )
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     usage_backfill_days: int = Field(
         default=45,
         alias="USAGE_BACKFILL_DAYS",
@@ -149,6 +150,7 @@ class Settings(BaseSettings):
     stripe_secret_key: SecretStr = Field(alias="STRIPE_SECRET_KEY")
     stripe_publishable_key: str = Field(alias="STRIPE_PUBLISHABLE_KEY")
     stripe_webhook_secret: SecretStr = Field(alias="STRIPE_WEBHOOK_SECRET")
+    sentry_dsn: SecretStr | None = Field(default=None, alias="SENTRY_DSN")
 
     @staticmethod
     def _is_missing(value: Any) -> bool:

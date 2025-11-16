@@ -4,6 +4,10 @@ from celery import Celery
 from celery.schedules import crontab
 
 from api_compass.core.config import settings
+from api_compass.core import telemetry
+
+telemetry.setup_logging()
+telemetry.setup_sentry()
 
 celery_app = Celery(
     "api_compass",
