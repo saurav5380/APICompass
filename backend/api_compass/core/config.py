@@ -117,6 +117,13 @@ class Settings(BaseSettings):
         le=360,
     )
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    raw_event_retention_days: int = Field(
+        default=180,
+        alias="RAW_EVENT_RETENTION_DAYS",
+        ge=30,
+        le=365,
+        description="How long to retain raw usage events before purging.",
+    )
     usage_backfill_days: int = Field(
         default=45,
         alias="USAGE_BACKFILL_DAYS",

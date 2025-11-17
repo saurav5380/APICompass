@@ -47,6 +47,14 @@ celery -A api_compass.celery_app call alerts.daily_digest
 
 `GET /usage/tips?environment=prod` returns heuristic suggestions (model mix, duplicate prompts, SendGrid plan usage). Each tip explains why it surfaced and links to docs/blog posts so the dashboard “tips” cards stay in sync with the API.
 
+### Security & data control
+
+See `backend/SECURITY.md` for what we store, retention defaults, and subprocessors. Org admins can:
+
+- Export their data via `GET /api/data/export` (CSV).
+- Schedule deletion via `POST /api/data/delete` (processed asynchronously).
+- Rely on audit logs for sensitive actions (connections, budgets, alerts sent).
+
 ### Plans & Stripe bootstrap
 
 Entitlements map to Stripe products/prices. Run the helper to create/update the catalog (Pro ships with a 14-day trial):

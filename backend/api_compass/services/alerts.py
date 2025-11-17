@@ -22,6 +22,7 @@ from api_compass.models import (
     ProviderType,
 )
 from api_compass.models.enums import EnvironmentType
+from api_compass.services import audit
 from api_compass.services import entitlements as entitlement_service
 from api_compass.services import notifications, usage
 
@@ -305,6 +306,21 @@ def _emit_alert_event(
     )
     session.add(event)
     session.commit()
+
+    audit.log_action(
+        session,
+        org_id=org_id,
+        action="alert.sent",
+        object_type="alert_event",
+        object_id=str(event.id),
+        metadata={
+            "type": candidate.alert_type,
+            "provider": candidate.provider.value if candidate.provider else "all",
+            "environment": candidate.environment.value if candidate.environment else "prod",
+            "channel": event.channel.value,
+            "severity": event.severity.value,
+        },
+    )
 
     provider_label = candidate.provider.value if candidate.provider else "All providers"
     subject = f"[API Compass] {provider_label} {candidate.alert_type.replace('_', ' ').title()}"

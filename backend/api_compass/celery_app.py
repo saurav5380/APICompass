@@ -18,6 +18,7 @@ celery_app = Celery(
         "api_compass.workers.aggregates",
         "api_compass.workers.alerts",
         "api_compass.workers.entitlements",
+        "api_compass.workers.cleanup",
     ],
 )
 
@@ -61,6 +62,11 @@ celery_app.conf.beat_schedule = {
         "task": "entitlements.expire_trials",
         "schedule": crontab(minute="*/5"),
         "options": {"queue": "billing"},
+    },
+    "cleanup-expire-raw-events": {
+        "task": "cleanup.expire_raw_events",
+        "schedule": crontab(minute=30, hour=3),
+        "options": {"queue": "cleanup"},
     },
 }
 

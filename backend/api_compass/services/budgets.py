@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from api_compass.models.enums import EnvironmentType, ProviderType
 from api_compass.models.tables import Budget
 from api_compass.schemas import BudgetCreate, BudgetRead
+from api_compass.services import audit
 
 
 def _normalize_environment(environment: EnvironmentType | None) -> EnvironmentType:
@@ -75,6 +76,15 @@ def upsert_budget(session: Session, org_id: UUID, payload: BudgetCreate) -> Budg
         session.refresh(budget)
         target = budget
 
+    audit.log_action(
+        session,
+        org_id=org_id,
+        action="budget.upserted",
+        object_type="budget",
+        object_id=str(target.id),
+        metadata={"provider": target.provider.value if target.provider else "all", "environment": target.environment.value},
+    )
+
     return BudgetRead(
         id=str(target.id),
         provider=target.provider,
@@ -91,3 +101,11 @@ def delete_budget(session: Session, org_id: UUID, budget_id: UUID) -> None:
         raise NoResultFound
     session.delete(budget)
     session.commit()
+    audit.log_action(
+        session,
+        org_id=org_id,
+        action="budget.deleted",
+        object_type="budget",
+        object_id=str(budget.id),
+        metadata={"provider": budget.provider.value if budget.provider else "all", "environment": budget.environment.value},
+    )

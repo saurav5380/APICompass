@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from api_compass.models.enums import ConnectionStatus
 from api_compass.models.tables import Connection
 from api_compass.schemas.connections import ConnectionCreate, ConnectionRead
+from api_compass.services import audit
 from api_compass.services import entitlements as entitlement_service
 from api_compass.services import jobs
 from api_compass.utils.crypto import encrypt_auth_payload, mask_secret
@@ -74,6 +75,14 @@ def create_connection(session: Session, org_id: UUID, payload: ConnectionCreate)
         raise
 
     session.refresh(connection)
+    audit.log_action(
+        session,
+        org_id=org_id,
+        action="connection.created",
+        object_type="connection",
+        object_id=str(connection.id),
+        metadata={"provider": connection.provider.value, "environment": connection.environment.value},
+    )
     jobs.schedule_sync(connection.id)
     return _build_response(connection)
 
@@ -106,5 +115,13 @@ def revoke_connection(session: Session, org_id: UUID, connection_id: UUID) -> Co
     session.commit()
     session.refresh(connection)
 
+    audit.log_action(
+        session,
+        org_id=org_id,
+        action="connection.revoked",
+        object_type="connection",
+        object_id=str(connection.id),
+        metadata={"provider": connection.provider.value, "environment": connection.environment.value},
+    )
     jobs.cancel_scheduled_jobs(connection.id)
     return _build_response(connection)
