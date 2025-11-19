@@ -1,0 +1,67 @@
+version: "3.9"
+
+services:
+  frontend:
+    image: ${FRONTEND_IMAGE:-api-compass-frontend:latest}
+    env_file:
+      - frontend/.env.prod
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  backend:
+    image: ${BACKEND_IMAGE:-api-compass-backend:latest}
+    command: uvicorn api_compass.main:app --host 0.0.0.0 --port 8000
+    env_file:
+      - backend/.env.prod
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+
+  celery_worker:
+    image: ${BACKEND_IMAGE:-api-compass-backend:latest}
+    command: celery -A api_compass.celery_app worker --loglevel=info --concurrency=4
+    env_file:
+      - backend/.env.prod
+    depends_on:
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+
+  celery_beat:
+    image: ${BACKEND_IMAGE:-api-compass-backend:latest}
+    command: celery -A api_compass.celery_app beat --loglevel=info
+    env_file:
+      - backend/.env.prod
+    depends_on:
+      redis:
+        condition: service_started
+
+  db:
+    image: timescale/timescaledb-ha:pg16-all
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-api_compass}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "15432:5432"
+
+  redis:
+    image: redis:7.4-alpine
+    command: redis-server --save 20 1 --loglevel warning
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+volumes:
+  pgdata:
+  redisdata:
