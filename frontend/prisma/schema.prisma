@@ -1,0 +1,220 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PlanType {
+  FREE       @map("free")
+  PRO        @map("pro")
+  ENTERPRISE @map("enterprise")
+}
+
+enum UserRole {
+  OWNER  @map("owner")
+  ADMIN  @map("admin")
+  MEMBER @map("member")
+  VIEWER @map("viewer")
+}
+
+enum ProviderType {
+  OPENAI   @map("openai")
+  TWILIO   @map("twilio")
+  SENDGRID @map("sendgrid")
+  STRIPE   @map("stripe")
+  GENERIC  @map("generic")
+}
+
+enum EnvironmentType {
+  PROD    @map("prod")
+  STAGING @map("staging")
+  DEV     @map("dev")
+}
+
+enum ConnectionStatus {
+  PENDING  @map("pending")
+  ACTIVE   @map("active")
+  ERROR    @map("error")
+  DISABLED @map("disabled")
+}
+
+enum AlertChannel {
+  EMAIL @map("email")
+  SLACK @map("slack")
+}
+
+enum AlertFrequency {
+  REAL_TIME @map("real_time")
+  HOURLY    @map("hourly")
+  DAILY     @map("daily")
+}
+
+enum AlertSeverity {
+  INFO     @map("info")
+  WARNING  @map("warning")
+  CRITICAL @map("critical")
+}
+
+model Org {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String   @db.VarChar(255)
+  plan             PlanType @default(FREE)
+  stripeCustomerId String?  @map("stripe_customer_id") @db.VarChar(255)
+  createdAt        DateTime @default(dbgenerated("timezone('utc', now())")) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(dbgenerated("timezone('utc', now())")) @map("updated_at") @db.Timestamptz(6)
+
+  users       User[]
+  connections Connection[]
+  budgets     Budget[]
+  alerts      AlertRule[]
+  audits      AuditLogEntry[]
+  dailyCosts  DailyUsageCost[]
+  usageEvents RawUsageEvent[]
+
+  @@map("orgs")
+}
+
+model User {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId                   String   @map("org_id") @db.Uuid
+  email                   String   @db.VarChar(320)
+  fullName                String?  @map("full_name") @db.VarChar(255)
+  role                    UserRole @default(MEMBER)
+  authProvider            String?  @map("auth_provider") @db.VarChar(50)
+  externalId              String?  @map("external_id") @db.VarChar(255)
+  notificationPreferences Json?    @map("notification_preferences")
+  createdAt               DateTime @default(dbgenerated("timezone('utc', now())")) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime @default(dbgenerated("timezone('utc', now())")) @map("updated_at") @db.Timestamptz(6)
+
+  org    Org             @relation(fields: [orgId], references: [id])
+  audits AuditLogEntry[]
+
+  @@unique([orgId, email], map: "uq_users_org_email")
+  @@map("users")
+}
+
+model Connection {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId             String           @map("org_id") @db.Uuid
+  provider          ProviderType
+  environment       EnvironmentType  @default(PROD)
+  status            ConnectionStatus @default(PENDING)
+  displayName       String?          @map("display_name") @db.VarChar(255)
+  encryptedAuthBlob Bytes            @map("encrypted_auth_blob")
+  scopes            Json?
+  metadata          Json?
+  lastSyncedAt      DateTime?        @map("last_synced_at") @db.Timestamptz(6)
+  createdAt         DateTime         @default(dbgenerated("timezone('utc', now())")) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime         @default(dbgenerated("timezone('utc', now())")) @map("updated_at") @db.Timestamptz(6)
+
+  org         Org             @relation(fields: [orgId], references: [id])
+  usageEvents RawUsageEvent[]
+
+  @@unique([orgId, provider, environment], map: "uq_connections_scope")
+  @@map("connections")
+}
+
+model RawUsageEvent {
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId        String          @map("org_id") @db.Uuid
+  connectionId String?         @map("connection_id") @db.Uuid
+  provider     ProviderType
+  environment  EnvironmentType
+  metric       String          @db.VarChar(255)
+  unit         String          @db.VarChar(64)
+  quantity     Decimal         @db.Decimal(20, 6)
+  unitCost     Decimal?        @map("unit_cost") @db.Decimal(20, 6)
+  cost         Decimal?        @db.Decimal(20, 6)
+  currency     String          @default("usd") @db.Char(3)
+  ts           DateTime        @db.Timestamptz(6)
+  source       String?         @db.VarChar(50)
+  metadata     Json?
+  ingestedAt   DateTime        @default(dbgenerated("timezone('utc', now())")) @map("ingested_at") @db.Timestamptz(6)
+
+  org        Org         @relation(fields: [orgId], references: [id])
+  connection Connection? @relation(fields: [connectionId], references: [id])
+
+  @@index([orgId, ts], map: "ix_raw_usage_events_org_ts")
+  @@index([provider, ts], map: "ix_raw_usage_events_provider_ts")
+  @@map("raw_usage_events")
+}
+
+model DailyUsageCost {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId         String          @map("org_id") @db.Uuid
+  provider      ProviderType
+  environment   EnvironmentType
+  day           DateTime        @db.Date
+  quantitySum   Decimal         @map("quantity_sum") @db.Decimal(20, 6)
+  costSum       Decimal         @map("cost_sum") @db.Decimal(20, 6)
+  currency      String          @default("usd") @db.Char(3)
+  confidenceMin Decimal?        @map("confidence_min") @db.Decimal(20, 6)
+  confidenceMax Decimal?        @map("confidence_max") @db.Decimal(20, 6)
+
+  org Org @relation(fields: [orgId], references: [id])
+
+  @@unique([orgId, provider, environment, day], map: "uq_daily_usage_scope")
+  @@map("daily_usage_costs")
+}
+
+model Budget {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId            String           @map("org_id") @db.Uuid
+  provider         ProviderType?
+  environment      EnvironmentType?
+  monthlyCap       Decimal          @map("monthly_cap") @db.Decimal(20, 2)
+  currency         String           @default("usd") @db.Char(3)
+  thresholdPercent Int              @default(80) @map("threshold_percent")
+  notes            String?          @db.VarChar(512)
+  createdAt        DateTime         @default(dbgenerated("timezone('utc', now())")) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime         @default(dbgenerated("timezone('utc', now())")) @map("updated_at") @db.Timestamptz(6)
+
+  org    Org         @relation(fields: [orgId], references: [id])
+  alerts AlertRule[]
+
+  @@map("budgets")
+}
+
+model AlertRule {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId           String         @map("org_id") @db.Uuid
+  budgetId        String?        @map("budget_id") @db.Uuid
+  channel         AlertChannel
+  frequency       AlertFrequency
+  severity        AlertSeverity  @default(WARNING)
+  ruleJson        Json           @map("rule_json")
+  quietHoursStart DateTime?      @map("quiet_hours_start") @db.Time(6)
+  quietHoursEnd   DateTime?      @map("quiet_hours_end") @db.Time(6)
+  debounceMinutes Int            @default(60) @map("debounce_minutes")
+  maxAlertsPerDay Int            @default(10) @map("max_alerts_per_day")
+  isActive        Boolean        @default(true) @map("is_active")
+  lastTriggeredAt DateTime?      @map("last_triggered_at") @db.Timestamptz(6)
+  createdAt       DateTime       @default(dbgenerated("timezone('utc', now())")) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime       @default(dbgenerated("timezone('utc', now())")) @map("updated_at") @db.Timestamptz(6)
+
+  org    Org     @relation(fields: [orgId], references: [id])
+  budget Budget? @relation(fields: [budgetId], references: [id])
+
+  @@map("alerts")
+}
+
+model AuditLogEntry {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId      String   @map("org_id") @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  action     String   @db.VarChar(128)
+  objectType String   @map("object_type") @db.VarChar(64)
+  objectId   String?  @map("object_id") @db.VarChar(64)
+  metadata   Json?
+  ipAddress  String?  @map("ip_address") @db.VarChar(64)
+  createdAt  DateTime @default(dbgenerated("timezone('utc', now())")) @map("created_at") @db.Timestamptz(6)
+
+  org  Org   @relation(fields: [orgId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([orgId, createdAt], map: "ix_audit_log_org_created")
+  @@map("audit_log")
+}
