@@ -112,6 +112,8 @@ class Connection(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     encrypted_auth_blob: Mapped[bytes] = mapped_column(sa.LargeBinary, nullable=False)
     scopes: Mapped[list[str] | None] = mapped_column(JSONB)
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB)
+    local_connector_enabled: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.false())
+    local_agent_last_seen_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     last_synced_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
 
     org: Mapped[Org] = relationship("Org", back_populates="connections")

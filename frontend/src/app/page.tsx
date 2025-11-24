@@ -123,7 +123,7 @@ const FEATURE_DETAILS: FeatureDetail[] = [
   {
     id: "privacy",
     label: "Privacy modes",
-    body: "Cloud: paste restricted keys and you're done. Local Connector: keep keys on your machine--only usage aggregates are sent.",
+    body: "Cloud: paste restricted keys and you're done. Local Connector: keep keys on your machine--signed aggregates hit /ingest so nothing sensitive lands on the server.",
     highlight: "Privacy-first mode keeps secrets local.",
   },
   {

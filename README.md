@@ -44,6 +44,15 @@ The frontend will be available at http://localhost:3000 and the API at http://lo
 - Prisma client/schema (for Next.js server actions): `cd frontend && npm run prisma:generate`
 - To validate the Prisma schema locally, set `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/api_compass`
 
+## Local Connector (hybrid mode)
+
+Security-conscious teams can keep provider keys on their laptops while still sending usage data to the cloud dashboard:
+
+- Toggle *Local Connector* when creating a connection to skip uploading the provider secret. API Compass issues a one-time agent token (prefixed `lc_…`) instead of storing the API key.
+- The lightweight agent stores provider keys in the OS keychain, polls the vendor APIs locally, and POSTs signed aggregates to `POST /ingest` with the `X-Agent-Signature` header.
+- Each payload includes the connection ID, provider, environment, and one or more normalized usage samples. Sign the raw JSON body with the agent token (HMAC-SHA256, base64url) so the backend can verify authenticity without ever persisting the provider secret.
+- Cloud workers continue to build forecasts, alerts, and savings tips from the ingested events, but only the agent holds the original API keys.
+
 ## CI/CD & releases
 
 - GitHub Actions (`.github/workflows/ci.yml`) lints, runs Alembic migrations/tests, and builds Docker images on every push/PR.

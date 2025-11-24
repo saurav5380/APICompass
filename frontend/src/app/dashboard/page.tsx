@@ -36,6 +36,8 @@ interface ConnectionRecord {
   masked_key: string;
   display_name?: string | null;
   created_at: string;
+  local_connector_enabled?: boolean;
+  local_agent_last_seen_at?: string | null;
 }
 
 interface AlertRule {
@@ -188,6 +190,8 @@ const SAMPLE_CONNECTIONS: ConnectionRecord[] = [
     masked_key: "twilio-***45ab",
     display_name: "Twilio . prod",
     created_at: new Date().toISOString(),
+    local_connector_enabled: true,
+    local_agent_last_seen_at: new Date().toISOString(),
   },
   {
     id: "sample-sendgrid",
@@ -662,6 +666,15 @@ function AlertsPanel({ alerts, isDark }: { alerts: AlertRule[]; isDark: boolean 
 }
 
 function ConnectionsPanel({ connections, isDark }: { connections: ConnectionRecord[]; isDark: boolean }) {
+  const formatCheckIn = (timestamp?: string | null) => {
+    if (!timestamp) return "Awaiting first check-in";
+    try {
+      return `Last check-in ${new Date(timestamp).toLocaleString()}`;
+    } catch {
+      return "Last check-in updating";
+    }
+  };
+
   return (
     <section
       className={`rounded-2xl border p-6 shadow-sm ${
@@ -680,12 +693,38 @@ function ConnectionsPanel({ connections, isDark }: { connections: ConnectionReco
               isDark ? "border-slate-800 bg-slate-950/60" : "border-zinc-100 bg-zinc-50"
             }`}
           >
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-1">
                 <p className="font-semibold">{connection.display_name}</p>
-                <p className={isDark ? "text-slate-400" : "text-zinc-500"}>{connection.masked_key}</p>
+                <p className={`flex items-center gap-2 ${isDark ? "text-slate-400" : "text-zinc-500"}`}>
+                  {connection.masked_key}
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                      connection.local_connector_enabled
+                        ? isDark
+                          ? "bg-emerald-500/20 text-emerald-200"
+                          : "bg-emerald-100 text-emerald-700"
+                        : isDark
+                          ? "bg-slate-800 text-slate-200"
+                          : "bg-zinc-100 text-zinc-600"
+                    }`}
+                  >
+                    {connection.local_connector_enabled ? "Local Connector" : "Cloud vault"}
+                  </span>
+                </p>
+                <p className={`text-xs ${isDark ? "text-slate-400" : "text-zinc-500"}`}>
+                  {connection.local_connector_enabled
+                    ? formatCheckIn(connection.local_agent_last_seen_at)
+                    : "Keys encrypted in server-side vault"}
+                </p>
               </div>
-              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${connection.status === "active" ? "bg-emerald-500/10 text-emerald-400" : "bg-yellow-500/10 text-yellow-500"}`}>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  connection.status === "active"
+                    ? "bg-emerald-500/10 text-emerald-400"
+                    : "bg-yellow-500/10 text-yellow-500"
+                }`}
+              >
                 {connection.status}
               </span>
             </div>

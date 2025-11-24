@@ -92,6 +92,7 @@ def _active_connections(session: Session, provider: ProviderType) -> list[Connec
     stmt = (
         select(Connection)
         .where(Connection.provider == provider, Connection.status == ConnectionStatus.ACTIVE)
+        .where(Connection.local_connector_enabled.is_(False))
         .order_by(Connection.created_at.asc())
     )
     return session.execute(stmt).scalars().all()

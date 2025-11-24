@@ -14,6 +14,7 @@ from api_compass.schemas.connections import ConnectionCreate, ConnectionRead
 from api_compass.services import audit
 from api_compass.services import entitlements as entitlement_service
 from api_compass.services import jobs
+from api_compass.services import local_agents
 from api_compass.utils.crypto import encrypt_auth_payload, mask_secret
 
 
@@ -26,7 +27,7 @@ def _now_iso() -> str:
     return datetime.now(tz=timezone.utc).isoformat()
 
 
-def _build_response(connection: Connection) -> ConnectionRead:
+def _build_response(connection: Connection, agent_token: str | None = None) -> ConnectionRead:
     metadata = connection.metadata_json or {}
     return ConnectionRead(
         id=connection.id,
@@ -38,23 +39,43 @@ def _build_response(connection: Connection) -> ConnectionRead:
         masked_key=metadata.get("masked_preview", "****"),
         created_at=connection.created_at,
         last_synced_at=connection.last_synced_at,
+        local_connector_enabled=bool(connection.local_connector_enabled),
+        local_agent_last_seen_at=connection.local_agent_last_seen_at,
+        local_agent_token=agent_token,
     )
 
 
 def create_connection(session: Session, org_id: UUID, payload: ConnectionCreate) -> ConnectionRead:
     entitlement_service.ensure_connection_slot(session, org_id)
-    secret = payload.api_key.get_secret_value()
-    encrypted_auth = encrypt_auth_payload(
-        {
-            "api_key": secret,
-            "provider": payload.provider,
-            "captured_at": _now_iso(),
-        }
-    )
-    metadata = {
-        "masked_preview": mask_secret(secret),
-        "scopes_version": "minimal",
-    }
+    metadata = {"scopes_version": "minimal"}
+    agent_token: str | None = None
+
+    if payload.local_connector_enabled:
+        agent_token = local_agents.generate_agent_token()
+        encrypted_auth = local_agents.build_auth_blob(agent_token)
+        metadata.update(
+            {
+                "masked_preview": local_agents.token_preview(agent_token),
+                "local_mode": True,
+            }
+        )
+    else:
+        if payload.api_key is None:
+            raise ValueError("api_key is required when local connector mode is disabled.")
+        secret = payload.api_key.get_secret_value()
+        encrypted_auth = encrypt_auth_payload(
+            {
+                "api_key": secret,
+                "provider": payload.provider,
+                "captured_at": _now_iso(),
+            }
+        )
+        metadata.update(
+            {
+                "masked_preview": mask_secret(secret),
+                "local_mode": False,
+            }
+        )
 
     connection = Connection(
         org_id=org_id,
@@ -65,6 +86,7 @@ def create_connection(session: Session, org_id: UUID, payload: ConnectionCreate)
         encrypted_auth_blob=encrypted_auth,
         scopes=_minimal_scopes(payload.scopes or []),
         metadata_json=metadata,
+        local_connector_enabled=payload.local_connector_enabled,
     )
 
     session.add(connection)
@@ -83,8 +105,9 @@ def create_connection(session: Session, org_id: UUID, payload: ConnectionCreate)
         object_id=str(connection.id),
         metadata={"provider": connection.provider.value, "environment": connection.environment.value},
     )
-    jobs.schedule_sync(connection.id)
-    return _build_response(connection)
+    if not payload.local_connector_enabled:
+        jobs.schedule_sync(connection.id)
+    return _build_response(connection, agent_token=agent_token)
 
 
 def list_connections(session: Session, org_id: UUID) -> list[ConnectionRead]:
@@ -110,6 +133,7 @@ def revoke_connection(session: Session, org_id: UUID, connection_id: UUID) -> Co
     metadata = connection.metadata_json or {}
     metadata.update({"revoked_at": _now_iso()})
     connection.metadata_json = metadata
+    connection.local_connector_enabled = False
 
     session.add(connection)
     session.commit()

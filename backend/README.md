@@ -43,6 +43,39 @@ celery -A api_compass.celery_app call alerts.evaluate
 celery -A api_compass.celery_app call alerts.daily_digest
 ```
 
+## Local Connector ingest
+
+Organizations can opt into “no keys on server” mode per connection. When `local_connector_enabled` is true, the backend issues a one-time agent token (`lc_…`) instead of storing the provider API key. The desktop agent keeps the real key in the OS keychain, polls the provider locally, and posts signed aggregates to `POST /ingest`.
+
+- **Signature:** Compute `base64url(hmac_sha256(agent_token, raw_json_body))` and send it via `X-Agent-Signature`. The backend decrypts the stored agent token, verifies the signature, and rejects mismatched scopes or inactive connections.
+- **Payload:** Include the connection UUID, provider, environment, agent version, and one or more usage samples—each sample mirrors the `UsageSample` dataclass (metric, unit, quantity, optional unit_cost/metadata, and timestamp).
+- **Entitlements:** The ingest endpoint enforces the org’s sync interval, so agents should respect HTTP 429 responses before retrying.
+
+Example:
+
+```bash
+curl https://api.local/ingest \
+  -H "Content-Type: application/json" \
+  -H "X-Agent-Signature: ${SIGNATURE}" \
+  -d '{
+    "connection_id": "9c6ac2f0-5b52-4a85-9d4c-e1f1a5f5d710",
+    "provider": "openai",
+    "environment": "prod",
+    "agent_version": "local-connector/1.0.0",
+    "samples": [
+      {
+        "metric": "openai:tokens",
+        "unit": "token",
+        "quantity": 128000,
+        "unit_cost": "0.000002",
+        "currency": "usd",
+        "ts": "2024-05-24T12:00:00Z",
+        "metadata": {"requests": 412}
+      }
+    ]
+  }'
+```
+
 ### Actionable tips
 
 `GET /usage/tips?environment=prod` returns heuristic suggestions (model mix, duplicate prompts, SendGrid plan usage). Each tip explains why it surfaced and links to docs/blog posts so the dashboard “tips” cards stay in sync with the API.
