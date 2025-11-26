@@ -4,8 +4,8 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = "0003_local_connector_mode"
-down_revision = "0002_org_rls_policies"
+revision = "0007_local_connector_mode"
+down_revision = "0006_org_entitlements"
 branch_labels = None
 depends_on = None
 
