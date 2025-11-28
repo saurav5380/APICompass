@@ -78,19 +78,24 @@ model Org {
 }
 
 model User {
-  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId                   String   @map("org_id") @db.Uuid
-  email                   String   @db.VarChar(320)
-  fullName                String?  @map("full_name") @db.VarChar(255)
-  role                    UserRole @default(MEMBER)
-  authProvider            String?  @map("auth_provider") @db.VarChar(50)
-  externalId              String?  @map("external_id") @db.VarChar(255)
-  notificationPreferences Json?    @map("notification_preferences")
-  createdAt               DateTime @default(dbgenerated("timezone('utc', now())")) @map("created_at") @db.Timestamptz(6)
-  updatedAt               DateTime @default(dbgenerated("timezone('utc', now())")) @map("updated_at") @db.Timestamptz(6)
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId                   String    @map("org_id") @db.Uuid
+  email                   String    @db.VarChar(320)
+  name                    String?   @db.VarChar(255)
+  fullName                String?   @map("full_name") @db.VarChar(255)
+  image                   String?   @db.Text
+  emailVerified           DateTime? @map("email_verified") @db.Timestamptz(6)
+  role                    UserRole  @default(MEMBER)
+  authProvider            String?   @map("auth_provider") @db.VarChar(50)
+  externalId              String?   @map("external_id") @db.VarChar(255)
+  notificationPreferences Json?     @map("notification_preferences")
+  createdAt               DateTime  @default(dbgenerated("timezone('utc', now())")) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime  @default(dbgenerated("timezone('utc', now())")) @map("updated_at") @db.Timestamptz(6)
 
   org    Org             @relation(fields: [orgId], references: [id])
   audits AuditLogEntry[]
+  accounts Account[]
+  sessions Session[]
 
   @@unique([orgId, email], map: "uq_users_org_email")
   @@map("users")
@@ -217,4 +222,46 @@ model AuditLogEntry {
 
   @@index([orgId, createdAt], map: "ix_audit_log_org_created")
   @@map("audit_log")
+}
+
+model Account {
+  id                 String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String  @map("user_id") @db.Uuid
+  type               String  @db.VarChar(255)
+  provider           String  @db.VarChar(255)
+  providerAccountId  String  @map("provider_account_id") @db.VarChar(255)
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String? @db.VarChar(255)
+  scope              String? @db.Text
+  id_token           String? @db.Text
+  session_state      String? @db.VarChar(255)
+  oauth_token_secret String? @db.Text
+  oauth_token        String? @db.Text
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id") @db.Uuid
+  expires      DateTime @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String   @db.VarChar(255)
+  token      String   @unique @db.VarChar(255)
+  expires    DateTime @db.Timestamptz(6)
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
 }
