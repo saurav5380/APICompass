@@ -9,6 +9,7 @@ from .enums import (
     UserRole,
 )
 from .tables import (
+    Account,
     AlertEvent,
     AlertRule,
     AuditLogEntry,
@@ -18,12 +19,15 @@ from .tables import (
     Org,
     OrgEntitlement,
     RawUsageEvent,
+    Session,
     User,
+    VerificationToken,
 )
 
 __all__ = [
     "AlertChannel",
     "AlertFrequency",
+    "Account",
     "AlertEvent",
     "AlertRule",
     "AlertSeverity",
@@ -37,7 +41,9 @@ __all__ = [
     "PlanType",
     "ProviderType",
     "RawUsageEvent",
+    "Session",
     "OrgEntitlement",
     "User",
     "UserRole",
+    "VerificationToken",
 ]

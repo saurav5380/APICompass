@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth";
 import type { Metadata } from "next";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { prisma } from "@/lib/prisma";
 import ConnectionsClient from "./ConnectionsClient";
 
 export const metadata: Metadata = {
@@ -13,35 +12,16 @@ export const metadata: Metadata = {
 export default async function ConnectionsPage() {
   const session = await getServerSession(authOptions);
 
-  if (!session?.user?.email) {
+  if (!session?.user?.email || !session.user.orgId) {
     redirect("/api/auth/signin?callbackUrl=/connections");
   }
 
-  const viewer = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    select: {
-      id: true,
-      name: true,
-      orgId: true,
-      org: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-    },
-  });
-
-  if (!viewer?.orgId) {
-    redirect("/api/auth/signin?callbackUrl=/connections");
-  }
-
-  const orgName = viewer.org?.name ?? "Your organization";
-  const userName = session.user.name ?? viewer.name ?? session.user.email;
+  const orgName = session.user.orgName ?? "Your organization";
+  const userName = session.user.name ?? session.user.email;
 
   return (
     <ConnectionsClient
-      orgId={viewer.orgId}
+      orgId={session.user.orgId}
       orgName={orgName}
       userName={userName}
       userEmail={session.user.email}

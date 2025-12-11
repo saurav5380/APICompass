@@ -81,7 +81,10 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     org_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), sa.ForeignKey("orgs.id"), nullable=False)
     email: Mapped[str] = mapped_column(sa.String(length=320), nullable=False)
+    name: Mapped[str | None] = mapped_column(sa.String(length=255))
     full_name: Mapped[str | None] = mapped_column(sa.String(length=255))
+    image: Mapped[str | None] = mapped_column(sa.Text)
+    email_verified: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     role: Mapped[UserRole] = mapped_column(
         user_role_enum, nullable=False, server_default=UserRole.MEMBER.value
     )
@@ -91,6 +94,12 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     org: Mapped[Org] = relationship("Org", back_populates="users")
     audit_logs: Mapped[list["AuditLogEntry"]] = relationship("AuditLogEntry", back_populates="user")
+    accounts: Mapped[list["Account"]] = relationship(
+        "Account", back_populates="user", cascade="all, delete-orphan"
+    )
+    sessions: Mapped[list["Session"]] = relationship(
+        "Session", back_populates="user", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         sa.UniqueConstraint("org_id", "email", name="uq_users_org_email"),
@@ -270,4 +279,54 @@ class AuditLogEntry(UUIDPrimaryKeyMixin, Base):
 
     __table_args__ = (
         sa.Index("ix_audit_log_org_created", "org_id", "created_at"),
+    )
+
+
+class Account(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "accounts"
+
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    type: Mapped[str] = mapped_column(sa.String(length=255), nullable=False)
+    provider: Mapped[str] = mapped_column(sa.String(length=255), nullable=False)
+    provider_account_id: Mapped[str] = mapped_column(sa.String(length=255), nullable=False)
+    refresh_token: Mapped[str | None] = mapped_column(sa.Text)
+    access_token: Mapped[str | None] = mapped_column(sa.Text)
+    expires_at: Mapped[int | None] = mapped_column(sa.Integer)
+    token_type: Mapped[str | None] = mapped_column(sa.String(length=255))
+    scope: Mapped[str | None] = mapped_column(sa.Text)
+    id_token: Mapped[str | None] = mapped_column(sa.Text)
+    session_state: Mapped[str | None] = mapped_column(sa.String(length=255))
+    oauth_token_secret: Mapped[str | None] = mapped_column(sa.Text)
+    oauth_token: Mapped[str | None] = mapped_column(sa.Text)
+
+    user: Mapped[User] = relationship("User", back_populates="accounts")
+
+    __table_args__ = (
+        sa.UniqueConstraint("provider", "provider_account_id", name="uq_accounts_provider_account_id"),
+    )
+
+
+class Session(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "sessions"
+
+    session_token: Mapped[str] = mapped_column(sa.String(length=255), nullable=False, unique=True)
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    expires: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
+
+    user: Mapped[User] = relationship("User", back_populates="sessions")
+
+
+class VerificationToken(Base):
+    __tablename__ = "verification_tokens"
+
+    identifier: Mapped[str] = mapped_column(sa.String(length=255), nullable=False)
+    token: Mapped[str] = mapped_column(sa.String(length=255), nullable=False, unique=True)
+    expires: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        sa.PrimaryKeyConstraint("identifier", "token", name="pk_verification_tokens"),
     )

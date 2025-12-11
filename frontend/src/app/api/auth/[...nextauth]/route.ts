@@ -1,11 +1,11 @@
 import NextAuth, { type NextAuthOptions } from "next-auth";
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import nodemailer from "nodemailer";
 import EmailProvider from "next-auth/providers/email";
 import GitHubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
 import { type SendVerificationRequestParams } from "next-auth/providers";
 import { prisma } from "@/lib/prisma";
+import { createApiCompassAdapter } from "@/lib/auth/adapter";
 
 const warnIfMissing = (name: string) => {
   if (!process.env[name]) {
@@ -73,8 +73,23 @@ const sendVerificationRequest = async ({
   }
 };
 
+const sessionUserSelect = {
+  id: true,
+  orgId: true,
+  name: true,
+  fullName: true,
+  email: true,
+  image: true,
+  org: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
+} as const;
+
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: createApiCompassAdapter(prisma),
   secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "database",
@@ -103,6 +118,38 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
+    async session({ session, user }) {
+      if (!session.user?.email) {
+        return session;
+      }
+
+      const profile =
+        (user?.id &&
+          (await prisma.user.findUnique({
+            where: { id: user.id },
+            select: sessionUserSelect,
+          }))) ??
+        (await prisma.user.findFirst({
+          where: {
+            email: {
+              equals: session.user.email,
+              mode: "insensitive",
+            },
+          },
+          select: sessionUserSelect,
+        }));
+
+      if (profile) {
+        session.user.id = profile.id;
+        session.user.orgId = profile.orgId;
+        session.user.orgName = profile.org?.name ?? "Your organization";
+        session.user.name =
+          profile.name ?? profile.fullName ?? session.user.name ?? profile.email;
+        session.user.image = profile.image ?? session.user.image ?? null;
+      }
+
+      return session;
+    },
     async redirect({ url, baseUrl }) {
       const dashboardUrl = `${baseUrl}/dashboard`;
 
