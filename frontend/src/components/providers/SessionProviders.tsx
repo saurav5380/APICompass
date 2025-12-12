@@ -2,6 +2,9 @@
 
 import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
+import { QueryClientProvider } from "@tanstack/react-query";
+
+import queryClient from "@/lib/queryClient";
 
 interface SessionProvidersProps {
   session: Session | null;
@@ -9,5 +12,9 @@ interface SessionProvidersProps {
 }
 
 export default function SessionProviders({ session, children }: SessionProvidersProps) {
-  return <SessionProvider session={session}>{children}</SessionProvider>;
+  return (
+    <SessionProvider session={session}>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </SessionProvider>
+  );
 }
