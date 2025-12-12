@@ -85,6 +85,8 @@ model User {
   fullName                String?   @map("full_name") @db.VarChar(255)
   image                   String?   @db.Text
   emailVerified           DateTime? @map("email_verified") @db.Timestamptz(6)
+  twoFactorEnabled        Boolean   @default(false) @map("two_factor_enabled")
+  twoFactorSecret         Bytes?    @map("two_factor_secret")
   role                    UserRole  @default(MEMBER)
   authProvider            String?   @map("auth_provider") @db.VarChar(50)
   externalId              String?   @map("external_id") @db.VarChar(255)

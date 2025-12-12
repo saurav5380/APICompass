@@ -85,6 +85,8 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     full_name: Mapped[str | None] = mapped_column(sa.String(length=255))
     image: Mapped[str | None] = mapped_column(sa.Text)
     email_verified: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    two_factor_enabled: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.false())
+    two_factor_secret: Mapped[bytes | None] = mapped_column(sa.LargeBinary)
     role: Mapped[UserRole] = mapped_column(
         user_role_enum, nullable=False, server_default=UserRole.MEMBER.value
     )

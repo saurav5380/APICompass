@@ -30,6 +30,9 @@ warnIfMissing("EMAIL_SERVER_USER");
 warnIfMissing("EMAIL_SERVER_PASSWORD");
 warnIfMissing("EMAIL_FROM");
 
+const secureCookies = process.env.NODE_ENV === "production";
+const cookiePrefix = secureCookies ? "__Secure-" : "";
+
 const APP_NAME = "API Compass";
 
 const createVerificationHtml = (url: string) => `
@@ -88,11 +91,136 @@ const sessionUserSelect = {
   },
 } as const;
 
+const auditUserSelect = {
+  id: true,
+  orgId: true,
+  email: true,
+} as const;
+
+type PartialUserLike = {
+  id?: string | null;
+  orgId?: string | null;
+  email?: string | null;
+};
+
+const resolveAuditUser = async (user?: PartialUserLike | null) => {
+  if (!user) {
+    return null;
+  }
+  if (user.orgId) {
+    return {
+      id: user.id ?? null,
+      orgId: user.orgId,
+      email: user.email ?? null,
+    };
+  }
+  if (user.id) {
+    return (
+      (await prisma.user.findUnique({
+        where: { id: user.id },
+        select: auditUserSelect,
+      })) ?? null
+    );
+  }
+  if (user.email) {
+    return (
+      (await prisma.user.findFirst({
+        where: {
+          email: {
+            equals: user.email,
+            mode: "insensitive",
+          },
+        },
+        select: auditUserSelect,
+      })) ?? null
+    );
+  }
+  return null;
+};
+
+const recordAuthEvent = async (
+  action: string,
+  params: {
+    user?: PartialUserLike | null;
+    email?: string | null;
+    success: boolean;
+    metadata?: Record<string, unknown>;
+    error?: unknown;
+  },
+) => {
+  try {
+    const profile =
+      (params.user && (await resolveAuditUser(params.user))) ||
+      (params.email && (await resolveAuditUser({ email: params.email })));
+
+    if (!profile?.orgId) {
+      console.warn(`[auth] Unable to persist ${action} without org context`, {
+        action,
+        email: params.email,
+      });
+      return;
+    }
+
+    const metadata = {
+      success: params.success,
+      email: profile.email ?? params.email ?? null,
+      ...(params.metadata ?? {}),
+    };
+
+    if (params.error instanceof Error) {
+      metadata.error = {
+        message: params.error.message,
+        name: params.error.name,
+      };
+    }
+
+    await prisma.auditLogEntry.create({
+      data: {
+        orgId: profile.orgId,
+        userId: profile.id ?? null,
+        action,
+        objectType: "auth",
+        metadata,
+      },
+    });
+  } catch (logError) {
+    console.error(`[auth] Failed to store ${action} event`, logError);
+  }
+};
+
 export const authOptions: NextAuthOptions = {
   adapter: createApiCompassAdapter(prisma),
   secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "database",
+  },
+  cookies: {
+    sessionToken: {
+      name: `${cookiePrefix}apic.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: secureCookies,
+      },
+    },
+    callbackUrl: {
+      name: `${cookiePrefix}apic.callback-url`,
+      options: {
+        sameSite: "lax",
+        path: "/",
+        secure: secureCookies,
+      },
+    },
+    csrfToken: {
+      name: `${cookiePrefix}apic.csrf-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: secureCookies,
+      },
+    },
   },
   providers: [
     GoogleProvider({
@@ -173,6 +301,37 @@ export const authOptions: NextAuthOptions = {
       }
 
       return dashboardUrl;
+    },
+  },
+  events: {
+    async signIn(message) {
+      await recordAuthEvent("auth.sign_in", {
+        user: message.user,
+        success: true,
+        metadata: {
+          provider: message.account?.provider,
+          type: message.account?.type,
+          isNewUser: message.isNewUser,
+        },
+      });
+    },
+    async signOut(message) {
+      const sessionUser = (message.session?.user ?? null) as PartialUserLike | null;
+      await recordAuthEvent("auth.sign_out", {
+        user: sessionUser,
+        success: true,
+      });
+    },
+    async error(error) {
+      const userLike = (error as { user?: PartialUserLike }).user ?? null;
+      await recordAuthEvent("auth.error", {
+        user: userLike ?? null,
+        success: false,
+        error,
+        metadata: {
+          cause: error.cause instanceof Error ? error.cause.message : undefined,
+        },
+      });
     },
   },
 };
