@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Select, SelectOption } from "@/components/ui/select";
 import { DateRangePicker, type DateRange } from "@/components/ui/date-range-picker";
 import { useMetricsOverview, useMetricsTrends } from "@/hooks/useMetrics";
+import MetricsCharts from "./MetricsCharts";
 
 const PROVIDER_OPTIONS = [
   { label: "All providers", value: "all" },
@@ -128,40 +129,18 @@ export default function DashboardClient() {
         <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide text-white/50">Cost trends</p>
-            <h2 className="text-xl font-semibold">Daily spend by provider</h2>
+            <h2 className="text-xl font-semibold">Time series</h2>
           </div>
           <p className="text-sm text-white/60">
             Showing <span className="font-semibold text-white">{range.from}</span> →{" "}
             <span className="font-semibold text-white">{range.to}</span>
           </p>
         </div>
-        {trendsQuery.isLoading ? (
-          <p className="text-sm text-white/70">Loading trends…</p>
-        ) : trendsQuery.isError ? (
-          <p className="text-sm text-rose-300">
-            Unable to load trends: {(trendsQuery.error as Error).message}
-          </p>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {trendsQuery.data?.map((point) => (
-              <div key={point.day} className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-sm uppercase tracking-wide text-white/60">{point.day}</p>
-                <div className="text-2xl font-semibold">
-                  ${(Number(point.spend) / 1000).toLocaleString(undefined, { minimumFractionDigits: 2 })}k
-                </div>
-                <div className="text-xs text-white/70">
-                  {point.calls.toLocaleString()} calls · {point.errors.toLocaleString()} errors
-                </div>
-                <div className="h-2 w-full rounded-full bg-white/10">
-                  <div
-                    className="h-2 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-200"
-                    style={{ width: `${Math.min(100, (Number(point.spend) / 5200) * 100)}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <MetricsCharts
+          data={trendsQuery.data}
+          loading={trendsQuery.isLoading}
+          error={trendsQuery.isError ? (trendsQuery.error as Error) : null}
+        />
       </section>
     </div>
   );

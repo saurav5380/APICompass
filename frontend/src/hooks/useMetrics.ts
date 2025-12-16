@@ -13,7 +13,7 @@ interface MetricsOverviewResponse {
   total_spend: number;
 }
 
-interface MetricsTrendPoint {
+export interface MetricsTrendPoint {
   day: string;
   calls: number;
   errors: number;
